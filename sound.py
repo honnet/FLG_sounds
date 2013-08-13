@@ -29,16 +29,18 @@ analog_values = []
 
 class SerialReader(threading.Thread):
     msg_pattern = re.compile(r'^([0-9,i]+)\.$')
-    def __init__(self, *args, **kwargs):
-        super(SerialReader, self).__init__(*args, **kwargs)
-        devs = glob.glob('/dev/ttyACM*')
+    device_pattern = '/dev/ttyACM*'
+
+    def run(self):
+        devs = glob.glob(device_pattern)
+        print "Waiting for serial device to come up..."
         while len(devs) == 0:
             time.sleep(0.5)
             devs = glob.glob('/dev/ttyACM*')
+        dev = devs[0]
+        print "Connecting to device %s" % dev
+        self.serial = serial.Serial(dev, 19200, timeout=1)
 
-        self.serial = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
-
-    def run(self):
         while True:
             line = self.serial.readline()
             match = self.msg_pattern.search(line)
@@ -96,6 +98,7 @@ class Breather(threading.Thread):
         self.queue = queue
 
     def run(self):
+        print "Starting Breather"
         while True:
             while not self.queue.empty():
                 self.speed = self.queue.get()
@@ -219,6 +222,7 @@ if __name__ == '__main__':
     breathing_sounds = gen_breathing_sounds()
 
     SerialReader().start()
+    print "Hey!"
 
     speedqueue = Queue()
     breather = Breather(speedqueue)
