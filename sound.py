@@ -1,12 +1,15 @@
 #!/usr/bin/env python
+# vim: set ai: set et: set ts=4; set sw=4:
 import time, os, sys
 import glob
 import subprocess
-from pyfirmata import Arduino, util
+#from pyfirmata import Arduino, util
 import itertools
 import random
 import threading
 from Queue import Queue
+import re
+import serial
 
 SOUND_ROOT = '/home/pi/FLG_sounds'
 INHALE_SOUNDS = glob.glob( os.path.join(SOUND_ROOT, 'normalized/inhale_[0-9]*.wav' ) )
@@ -21,6 +24,29 @@ IR_PINS = [0, 1]
 IR_EVENT_THRESHOLD = 0.2
 
 FELT_PINS = [5]
+
+analog_values = []
+
+class SerialReader(threading.Thread):
+    msg_pattern = re.compile(r'^([0-9,i]+)\.$')
+    def __init__(self, *args, **kwargs):
+        super(SerialReader, self).__init__(*args, **kwargs)
+        devs = glob.glob('/dev/ttyACM*')
+        while len(devs) == 0:
+            time.sleep(0.5)
+            devs = glob.glob('/dev/ttyACM*')
+
+        self.serial = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
+    def run(self):
+        while True:
+            line = self.serial.readline()
+            match = self.msg_pattern.search(line)
+            if not match:
+                continue
+            analog_values = match.groups()[0].split(',')
+            print analog_values
+            time.sleep(0) # secs
 
 def median(mylist):
     sorts = sorted(mylist)
@@ -43,10 +69,14 @@ def play_sound(filename, speed=1.0, vol=1.0, block=False):
 
 def readIR(analog_pin):
     SAMPLES = 8
+    sample = None
+    if analog_pin >=  (len(analog_values) - 1):
+        return None
     while True:
         samples = []
         while len(samples) < SAMPLES:
-           sample = board.analog[analog_pin].read()
+           #sample = board.analog[analog_pin].read()
+           sample = analog_values[analog_pin]
            if sample:
                samples.append(sample)
         return median(samples)
@@ -134,8 +164,9 @@ class IRSensor(object):
 
     def update(self):
         self.prior_value = self.value
-        if board: # if no arduino is hooked up, skip this
-            self.value = readIR(self.pin)
+        newvalue = readIR(self.pin)
+        if newvalue:
+            self.value = newvalue
         delta = self.value - self.prior_value
         if delta > IR_EVENT_THRESHOLD:
             self.counter += 1
@@ -151,8 +182,9 @@ class FeltSensor(object):
     def update(self):
         self.last_value = self.value
         r = readIR(self.pin)
-        self.value = {True: 1, False:0}[r >= 0.9]
-        #print "Felt %d: %F" % (self.pin, self.value)
+        if r:
+            self.value = {True: 1, False:0}[r >= 0.9]
+            #print "Felt %d: %F" % (self.pin, self.value)
         if self.last_value == 0 and self.value == 1:
             self.trigger_sound()
 
@@ -166,6 +198,7 @@ if __name__ == '__main__':
 
     # Setup pyfirmata for arduino reads
     acm_no = 0
+    """
     board = None
     while acm_no < 10:
         try:
@@ -181,8 +214,11 @@ if __name__ == '__main__':
         it.start()
         for pin in IR_PINS + FELT_PINS:
             board.analog[pin].enable_reporting()
+    """
 
     breathing_sounds = gen_breathing_sounds()
+
+    SerialReader().start()
 
     speedqueue = Queue()
     breather = Breather(speedqueue)
