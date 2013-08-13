@@ -7,7 +7,7 @@ import subprocess
 import itertools
 import random
 import threading
-from Queue import Queue
+from Queue import Queue, Empty, Full
 import re
 import serial
 
@@ -19,7 +19,7 @@ MAX_BREATH_SPEED = 2.5
 GROWTH_LIMIT=0.0003
 DECAY_RATE=1.0
 
-IR_PINS = [0, 1]
+IR_PINS = [0]
 #IR_EVENT_THRESHOLD = 0.05
 IR_EVENT_THRESHOLD = 0.2
 
@@ -28,11 +28,19 @@ FELT_PINS = [5]
 analog_values = []
 
 class SerialReader(threading.Thread):
-    msg_pattern = re.compile(r'^([0-9,i]+)\.$')
-    device_pattern = '/dev/ttyACM*'
+    global analog_values
+    daemon = True
+    msg_pattern = re.compile(r'^!([0-9,i]+)\.$')
+    #device_pattern = '/dev/ttyACM*'
+    #device_pattern = '/dev/ttyUSB*'
+    device_pattern = '/dev/ttyASM*'
+
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.q = Queue(maxsize=1)
 
     def run(self):
-        devs = glob.glob(device_pattern)
+        devs = glob.glob(self.device_pattern)
         print "Waiting for serial device to come up..."
         while len(devs) == 0:
             time.sleep(0.5)
@@ -40,15 +48,22 @@ class SerialReader(threading.Thread):
         dev = devs[0]
         print "Connecting to device %s" % dev
         self.serial = serial.Serial(dev, 19200, timeout=1)
+        print "Connected"
 
         while True:
             line = self.serial.readline()
+            line = line.strip()
             match = self.msg_pattern.search(line)
             if not match:
                 continue
             analog_values = match.groups()[0].split(',')
-            print analog_values
-            time.sleep(0) # secs
+            try:
+                self.q.put(analog_values, True)
+            except Full:
+                # only write to the queue if someone is there to read it.
+                pass
+            #print analog_values
+            time.sleep(0.05) # secs
 
 def median(mylist):
     sorts = sorted(mylist)
@@ -59,7 +74,7 @@ def median(mylist):
 
 def play_sound(filename, speed=1.0, vol=1.0, block=False):
     filename = os.path.join(SOUND_ROOT, filename)
-    print "Playing %s" % filename
+    #print "Playing %s" % filename
     out = open('/dev/null', 'w')
     #out = None
     p = subprocess.Popen(('play',filename, 'tempo', str(speed), 'vol', str(vol)), stdout=out, stderr=out)
@@ -72,13 +87,21 @@ def play_sound(filename, speed=1.0, vol=1.0, block=False):
 def readIR(analog_pin):
     SAMPLES = 8
     sample = None
-    if analog_pin >=  (len(analog_values) - 1):
-        return None
     while True:
         samples = []
         while len(samples) < SAMPLES:
            #sample = board.analog[analog_pin].read()
-           sample = analog_values[analog_pin]
+           #sample = analog_values[analog_pin]
+           #serial_reader.q.get() # throw one away. it might be old
+           try:
+               analog_values = serial_reader.q.get(True)
+               if analog_pin >=  (len(analog_values) - 1):
+                   return None
+               else:
+                   sample = int(analog_values[analog_pin])
+           except Empty:
+                sample = None
+                print "Empty"
            if sample:
                samples.append(sample)
         return median(samples)
@@ -139,7 +162,8 @@ class ActivityCounter(object):
             if self.value > 0:
                 self.value -= 1
             self.last_decay_time = time.time()
-        print "Counter: %d" % int(self)
+        if int(self) > 0:
+            print "Counter: %d" % int(self)
         sys.stdout.flush()
 
     def __iadd__(self, n):
@@ -168,6 +192,7 @@ class IRSensor(object):
     def update(self):
         self.prior_value = self.value
         newvalue = readIR(self.pin)
+        print newvalue
         if newvalue:
             self.value = newvalue
         delta = self.value - self.prior_value
@@ -221,8 +246,8 @@ if __name__ == '__main__':
 
     breathing_sounds = gen_breathing_sounds()
 
-    SerialReader().start()
-    print "Hey!"
+    serial_reader = SerialReader()
+    serial_reader.start()
 
     speedqueue = Queue()
     breather = Breather(speedqueue)
