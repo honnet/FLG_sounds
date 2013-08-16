@@ -8,6 +8,7 @@ import itertools
 import random
 import threading
 from Queue import Queue, Empty, Full
+from collections import deque
 import re
 import serial
 
@@ -19,13 +20,15 @@ MAX_BREATH_SPEED = 2.5
 GROWTH_LIMIT=0.0003
 DECAY_RATE=1.0
 
+RING_BUFFER_SIZE = 8
+
 IR_PINS = [0]
 #IR_EVENT_THRESHOLD = 0.05
 IR_EVENT_THRESHOLD = 0.2
 
 FELT_PINS = [5]
 
-analog_values = []
+analog_values = None
 
 class SerialReader(threading.Thread):
     global analog_values
@@ -37,7 +40,10 @@ class SerialReader(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        self.q = Queue(maxsize=1)
+        #self.q = Queue(maxsize=1)
+        #self.buf = dequeue(maxlen=RING_BUFFER_SIZE) # deque can be used as a thread-safe ring buffer
+        self.channel_buffers = None
+        self.connected = False
 
     def run(self):
         devs = glob.glob(self.device_pattern)
@@ -48,6 +54,7 @@ class SerialReader(threading.Thread):
         dev = devs[0]
         print "Connecting to device %s" % dev
         self.serial = serial.Serial(dev, 19200, timeout=1)
+        self.connected = True
         print "Connected"
 
         while True:
@@ -58,12 +65,24 @@ class SerialReader(threading.Thread):
                 continue
             analog_values = match.groups()[0].split(',')
             try:
-                self.q.put(analog_values, True)
+                #self.q.put(analog_values, True)
+                self.buf.append(analog_values)
             except Full:
                 # only write to the queue if someone is there to read it.
                 pass
             #print analog_values
+            if not self.channel_buffers:
+                # initalize one ring buffer per channel in the sample
+                self.channel_buffers = [ dequeue(maxlen=channel_BUFFER_SIZE) for v in analog_values ]
+            for i, v in enumerate(analog_values):
+                self.channel_buffers[i].append(int(v))
             time.sleep(0.05) # secs
+
+    def get_pin_value(self, n):
+        try:
+            return self.channel_buffers[n].popleft()
+        except :
+            return None
 
 def median(mylist):
     sorts = sorted(mylist)
@@ -85,23 +104,15 @@ def play_sound(filename, speed=1.0, vol=1.0, block=False):
 
 
 def readIR(analog_pin):
-    SAMPLES = 8
+    num_samples = 8
     sample = None
     while True:
         samples = []
-        while len(samples) < SAMPLES:
+        while len(samples) < num_samples:
            #sample = board.analog[analog_pin].read()
            #sample = analog_values[analog_pin]
            #serial_reader.q.get() # throw one away. it might be old
-           try:
-               analog_values = serial_reader.q.get(True)
-               if analog_pin >=  (len(analog_values) - 1):
-                   return None
-               else:
-                   sample = int(analog_values[analog_pin])
-           except Empty:
-                sample = None
-                print "Empty"
+           sample = serial_reader.get_pin_value(analog_pin)
            if sample:
                samples.append(sample)
         return median(samples)
@@ -114,11 +125,14 @@ def gen_breathing_sounds():
 
 breathspeed = 0.8 
 class Breather(threading.Thread):
-    def __init__(self, queue, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(Breather, self).__init__(*args, **kwargs)
         self.daemon = True
         self.speed = 0.8
-        self.queue = queue
+        self.queue = Queue()
+
+    def set_speed(self, speed):
+        self.queue.put(speed)
 
     def run(self):
         print "Starting Breather"
@@ -249,8 +263,7 @@ if __name__ == '__main__':
     serial_reader = SerialReader()
     serial_reader.start()
 
-    speedqueue = Queue()
-    breather = Breather(speedqueue)
+    breather = Breather()
     breather.start()
 
     scraper = Looper('normalized/scrapes_loop.wav', vol='-3dB')
@@ -266,7 +279,7 @@ if __name__ == '__main__':
             irs.update()
         counter.update()
         #print("Speed: %f" % Breather.counter_to_speed(counter))
-        speedqueue.put(Breather.counter_to_speed(counter))
+        breather.set_speed(Breather.counter_to_speed(counter))
 
         for felt in felt_sensors:
             felt.update()
