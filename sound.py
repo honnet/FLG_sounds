@@ -20,6 +20,7 @@ MAX_BREATH_SPEED = 2.5
 GROWTH_LIMIT=0.0003
 DECAY_RATE=1.0
 
+SERIAL_PORT_PATTERN = '/dev/ttyAMA*'
 RING_BUFFER_SIZE = 8
 
 IR_PINS = [0]
@@ -46,7 +47,7 @@ class SerialReader(threading.Thread):
         print "Waiting for serial device to come up..."
         while len(devs) == 0:
             time.sleep(0.5)
-            devs = glob.glob('/dev/ttyACM*')
+            devs = glob.glob(SERIAL_PORT_PATTERN)
         dev = devs[0]
         print "Connecting to device %s" % dev
         self.serial = serial.Serial(dev, 19200, timeout=1)
@@ -58,20 +59,15 @@ class SerialReader(threading.Thread):
             line = line.strip()
             match = self.msg_pattern.search(line)
             if not match:
+                print "Bad packet."
                 continue
             analog_values = match.groups()[0].split(',')
-            try:
-                self.buf.append(analog_values)
-            except Full:
-                # only write to the queue if someone is there to read it.
-                pass
-            #print analog_values
             if not self.channel_buffers:
                 # initalize one ring buffer per channel in the sample
-                self.channel_buffers = [ dequeue(maxlen=channel_BUFFER_SIZE) for v in analog_values ]
+                self.channel_buffers = [ deque(maxlen=RING_BUFFER_SIZE) for v in analog_values ]
             for i, v in enumerate(analog_values):
                 self.channel_buffers[i].append(int(v))
-            time.sleep(0.05) # secs
+            time.sleep(0.2) # secs
 
     def get_pin_value(self, n):
         try:
@@ -87,8 +83,9 @@ def median(mylist):
     return sorts[length / 2]
 
 def play_sound(filename, speed=1.0, vol=1.0, block=False):
+    pass
     filename = os.path.join(SOUND_ROOT, filename)
-    #print "Playing %s" % filename
+    print "Playing %s" % filename
     out = open('/dev/null', 'w')
     #out = None
     p = subprocess.Popen(('play',filename, 'tempo', str(speed), 'vol', str(vol)), stdout=out, stderr=out)
@@ -123,6 +120,7 @@ class Breather(threading.Thread):
         self.queue = Queue()
 
     def set_speed(self, speed):
+        print "Set speed: %d" % speed
         self.queue.put(speed)
 
     def run(self):
