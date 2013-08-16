@@ -28,10 +28,8 @@ IR_EVENT_THRESHOLD = 0.2
 
 FELT_PINS = [5]
 
-analog_values = None
 
 class SerialReader(threading.Thread):
-    global analog_values
     daemon = True
     msg_pattern = re.compile(r'^!([0-9,i]+)\.$')
     #device_pattern = '/dev/ttyACM*'
@@ -40,8 +38,6 @@ class SerialReader(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        #self.q = Queue(maxsize=1)
-        #self.buf = dequeue(maxlen=RING_BUFFER_SIZE) # deque can be used as a thread-safe ring buffer
         self.channel_buffers = None
         self.connected = False
 
@@ -65,7 +61,6 @@ class SerialReader(threading.Thread):
                 continue
             analog_values = match.groups()[0].split(',')
             try:
-                #self.q.put(analog_values, True)
                 self.buf.append(analog_values)
             except Full:
                 # only write to the queue if someone is there to read it.
@@ -97,7 +92,6 @@ def play_sound(filename, speed=1.0, vol=1.0, block=False):
     out = open('/dev/null', 'w')
     #out = None
     p = subprocess.Popen(('play',filename, 'tempo', str(speed), 'vol', str(vol)), stdout=out, stderr=out)
-    #p = subprocess.Popen("sleep 1", stdout=out, stderr=out)
     if block:
         p.wait()
     return p
@@ -109,9 +103,6 @@ def readIR(analog_pin):
     while True:
         samples = []
         while len(samples) < num_samples:
-           #sample = board.analog[analog_pin].read()
-           #sample = analog_values[analog_pin]
-           #serial_reader.q.get() # throw one away. it might be old
            sample = serial_reader.get_pin_value(analog_pin)
            if sample:
                samples.append(sample)
