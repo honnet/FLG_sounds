@@ -18,6 +18,7 @@ EXHALE_SOUNDS = glob.glob( os.path.join(SOUND_ROOT, 'normalized/exhale_[0-9]*.wa
 MIN_BREATH_SPEED = 0.6
 MAX_BREATH_SPEED = 2.5
 GROWTH_LIMIT=0.0003
+GROWTH_INCREMENT = 5
 DECAY_RATE=1.0
 
 SERIAL_PORT_PATTERN = '/dev/ttyAMA*'
@@ -25,7 +26,7 @@ RING_BUFFER_SIZE = 8
 
 IR_PINS = [0]
 #IR_EVENT_THRESHOLD = 0.05
-IR_EVENT_THRESHOLD = 0.2
+IR_EVENT_THRESHOLD = 1
 
 FELT_PINS = [5]
 
@@ -67,7 +68,7 @@ class SerialReader(threading.Thread):
                 self.channel_buffers = [ deque(maxlen=RING_BUFFER_SIZE) for v in analog_values ]
             for i, v in enumerate(analog_values):
                 self.channel_buffers[i].append(int(v))
-            time.sleep(0.2) # secs
+            time.sleep(0.05) # secs
 
     def get_pin_value(self, n):
         try:
@@ -95,6 +96,7 @@ def play_sound(filename, speed=1.0, vol=1.0, block=False):
 
 
 def readIR(analog_pin):
+    return serial_reader.get_pin_value(analog_pin)
     num_samples = 8
     sample = None
     while True:
@@ -187,8 +189,8 @@ class ActivityCounter(object):
 class IRSensor(object):
     def __init__(self, pin, counter):
         self.pin = pin
-        self.value = 0.0
-        self.prior_value = 0.0
+        self.value = 0
+        self.prior_value = 0
         self.counter = counter
         print "IR Sensor on analog %d" % pin
 
@@ -199,9 +201,10 @@ class IRSensor(object):
         if newvalue:
             self.value = newvalue
         delta = self.value - self.prior_value
+        print "IR %d delta: %d" % (self.pin, self.value - self.prior_value)
         if delta > IR_EVENT_THRESHOLD:
-            self.counter += 1
-            print "IR %d delta: %f" % (self.pin, self.value - self.prior_value)
+            self.counter += GROWTH_INCREMENT 
+            print "Counter ++"
 
 class FeltSensor(object):
     def __init__(self, pin):
@@ -229,23 +232,6 @@ if __name__ == '__main__':
 
     # Setup pyfirmata for arduino reads
     acm_no = 0
-    """
-    board = None
-    while acm_no < 10:
-        try:
-            board = Arduino('/dev/ttyACM%d' % acm_no)
-            print "Found arduino on /dev/tty/ACM%d" % acm_no
-            break
-        except:
-            acm_no += 1
-            continue
-    if board:
-        it = util.Iterator(board)
-        it.daemon = True
-        it.start()
-        for pin in IR_PINS + FELT_PINS:
-            board.analog[pin].enable_reporting()
-    """
 
     breathing_sounds = gen_breathing_sounds()
 
