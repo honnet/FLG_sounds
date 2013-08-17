@@ -8,8 +8,8 @@ int samplebank[NUM_PINS][NUM_SAMPLES];
 int medians[NUM_PINS];
 
 void setup(){
-  uart.begin(19200);
-  uart.print("Serial is go.");
+    uart.begin(19200);
+    uart.print("Serial is go.");
 }
 
 int median( int n, int arr[] ){
@@ -26,7 +26,7 @@ int median( int n, int arr[] ){
             }
         }
     }
- 
+
     if(n%2==0) {
         // if there is an even number of elements, return mean of the two elements in the middle
         return((arr[n/2] + arr[n/2 - 1]) / 2.0);
@@ -39,11 +39,11 @@ int median( int n, int arr[] ){
 bool foo = true;
 
 void loop(){
-  for (int j=0; j<NUM_SAMPLES; j++) {
-    for (int i=0; i<NUM_PINS; i++) {
-        samplebank[i][j] = analogRead(i);
+    for (int j=0; j<NUM_SAMPLES; j++) {
+        for (int i=0; i<NUM_PINS; i++) {
+            samplebank[i][j] = analogRead(i);
+        }
     }
-  }
 
     for (int i=0; i<NUM_PINS; i++) {
         medians[i] = median(NUM_PINS, samplebank[i]);
