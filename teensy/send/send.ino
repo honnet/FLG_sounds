@@ -3,13 +3,29 @@ HardwareSerial uart = HardwareSerial();
 const int LED_PIN = 11;
 const int NUM_PINS = 5;
 const int NUM_SAMPLES = 8;
+const int SHROOM_PIN = 0;
 
 int samplebank[NUM_PINS][NUM_SAMPLES];
 int medians[NUM_PINS];
+int naturalState;
 
 void setup(){
     uart.begin(19200);
     uart.print("Serial is go.");
+    naturalState = calibrate();
+}
+
+int calibrate(){
+    const int N = 300; // take 300 samples...
+    const int MS = 10; // ...every 10ms => 3 sec
+    int acc = 0;
+
+    for (int i=0; i<N; i++){
+        acc += analogRead(SHROOM_PIN);
+        delay(MS);
+    }
+
+    return acc/N;
 }
 
 int median( int n, int arr[] ){
@@ -41,7 +57,14 @@ bool foo = true;
 void loop(){
     for (int j=0; j<NUM_SAMPLES; j++) {
         for (int i=0; i<NUM_PINS; i++) {
+            // one of the sensors need to be supplied when it's measured:
+            if (i == SHROOM_PIN) digitalWrite(SHROOM_PIN, HIGH);
             samplebank[i][j] = analogRead(i);
+            if (i == SHROOM_PIN) {
+                digitalWrite(SHROOM_PIN, LOW);
+                // get a value in the inverted range [40; 0] so remap it to [0; 1023]:
+                samplebank[i][j] = map(samplebank[i][j], naturalState,0 , 0,1023);
+            }
         }
     }
 
