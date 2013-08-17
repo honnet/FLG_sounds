@@ -3,13 +3,53 @@ HardwareSerial uart = HardwareSerial();
 const int LED_PIN = 11;
 const int NUM_PINS = 5;
 const int NUM_SAMPLES = 8;
+const int FELT_ANALOG_PIN = 5;
+const int FELT_SUPPLY_PIN = 5;
 
 int samplebank[NUM_PINS][NUM_SAMPLES];
 int medians[NUM_PINS];
+int minPush = 0;
+int maxPush = 0;
 
 void setup(){
     uart.begin(19200);
     uart.print("Serial is go.");
+
+    pinMode(FELT_SUPPLY_PIN, OUTPUT);
+    calibrate();
+}
+
+void calibrate(){
+    const int SAMPLE_PERIOD = 10;  // ms
+    const int SAMPLE_NUMBER = 500; // 5 seconds
+
+    // measure the average, don't touch for 5 seconds!
+    float accumulator = 0;
+    for (int i=0; i<SAMPLE_NUMBER; i++){
+        digitalWrite(FELT_SUPPLY_PIN, HIGH);
+        int val = analogRead(FELT_ANALOG_PIN);
+        digitalWrite(FELT_SUPPLY_PIN, LOW);
+
+        accumulator += val;
+        delay(SAMPLE_PERIOD);
+    }
+    minPush = 0.85*accumulator/SAMPLE_NUMBER; // 15% security margin
+
+    delay(1000);
+
+    // measure the maximum pressure by hitting the felt:
+    for (int i=0; i<SAMPLE_NUMBER; i++){
+        digitalWrite(FELT_SUPPLY_PIN, HIGH);
+        int val = analogRead(FELT_ANALOG_PIN);
+        digitalWrite(FELT_SUPPLY_PIN, LOW);
+
+        // Warning: inverted logic on purpose
+        if (val < maxPush)
+            maxPush = val;
+        delay(SAMPLE_PERIOD);
+    }
+    maxPush *= 1.15; // 15% security margin
+
 }
 
 int median( int n, int arr[] ){
@@ -41,14 +81,22 @@ bool foo = true;
 void loop(){
     for (int j=0; j<NUM_SAMPLES; j++) {
         for (int i=0; i<NUM_PINS; i++) {
+            // one of the sensors need to be supplied when it's measured:
+            if (i == FELT_ANALOG_PIN) digitalWrite(FELT_SUPPLY_PIN, HIGH);
             samplebank[i][j] = analogRead(i);
+            if (i == FELT_ANALOG_PIN) digitalWrite(FELT_SUPPLY_PIN, LOW);
         }
     }
 
     for (int i=0; i<NUM_PINS; i++) {
         medians[i] = median(NUM_PINS, samplebank[i]);
-    }
 
+        // get a value in the inverted range [40; 0] so remap it to [0; 1023]:
+        if (i == FELT_ANALOG_PIN) {
+            medians[i] = map(medians[i], minPush,maxPush , 0,1023);
+            medians[i] = constrain(medians[i], 0,1023);
+        }
+    }
 
     uart.print("!");
     for (int i=0; i<NUM_PINS; i++) {
@@ -62,3 +110,4 @@ void loop(){
 
     delay(100); // miliseconds
 }
+
