@@ -109,11 +109,11 @@ def readIR(analog_pin):
 
 def gen_breathing_sounds():
     while True:
-        yield random.choice(INHALE_SOUNDS)   
-        yield random.choice(EXHALE_SOUNDS)   
+        yield random.choice(INHALE_SOUNDS)
+        yield random.choice(EXHALE_SOUNDS)
 
 
-breathspeed = 0.8 
+breathspeed = 0.8
 class Breather(threading.Thread):
     def __init__(self, *args, **kwargs):
         super(Breather, self).__init__(*args, **kwargs)
@@ -144,7 +144,7 @@ class Looper(threading.Thread):
         self.speed = speed
         self.vol = vol
         self.soundfile = soundfile
-        
+
 
     def run(self):
         while True:
@@ -203,7 +203,7 @@ class IRSensor(object):
         delta = self.value - self.prior_value
         print "IR %d delta: %d" % (self.pin, self.value - self.prior_value)
         if delta > IR_EVENT_THRESHOLD:
-            self.counter += GROWTH_INCREMENT 
+            self.counter += GROWTH_INCREMENT
             print "Counter ++"
 
 class FeltSensor(object):
@@ -243,11 +243,11 @@ if __name__ == '__main__':
 
     scraper = Looper('normalized/scrapes_loop.wav', vol='-3dB')
     scraper.start()
-    
+
     counter = ActivityCounter()
     ir_sensors = [ IRSensor(pin, counter) for pin in IR_PINS  ]
     felt_sensors = [ FeltSensor(pin) for pin in FELT_PINS ]
-    
+
     speed = 0.8
     while True:
         for irs in ir_sensors:
@@ -258,5 +258,5 @@ if __name__ == '__main__':
 
         for felt in felt_sensors:
             felt.update()
-        
+
         time.sleep(0.10)
