@@ -1,40 +1,37 @@
 // Tests with arduino uno:
 const int FELT_ANALOG_PIN = 5;
 const int FELT_SUPPLY_PIN = 5;
-int naturalState;
+int minPush = 0;
+int maxPush = 1023;
 bool foo = true;
 
 void setup(){
     Serial.begin(115200);
+    Serial.println("Start.");
+
     pinMode(FELT_SUPPLY_PIN, OUTPUT);
+    calibrate();
 
-    Serial.println("calibration:");
-    naturalState = calibrate();
-
-    Serial.print("=> calibration done: ");
-    Serial.println(naturalState);
-
-    while (Serial.available() == 0);
+    Serial.println("=> calibration done: ");
+    Serial.println(minPush);
+    Serial.println(maxPush);
+    delay(1000);
 }
 
-int calibrate(){
-    const int SAMPLE_NUMBER = 100; // take 100 samples...
-    const int SAMPLE_PERIOD = 10;  // ...every 10ms => 1 sec
-    float accumulator = 0;
+void calibrate(){
+    const int SAMPLE_NUMBER = 1500; // every ms
 
+    // measure the maximum and minimum pressures:
     for (int i=0; i<SAMPLE_NUMBER; i++){
         digitalWrite(FELT_SUPPLY_PIN, HIGH);
-
         int val = analogRead(FELT_ANALOG_PIN);
-        Serial.print(val);
-        Serial.print(" ");
-
-        accumulator += val;
         digitalWrite(FELT_SUPPLY_PIN, LOW);
-        delay(SAMPLE_PERIOD);
+
+        // Warning: inverted logic on purpose
+        if (val < maxPush) maxPush = val;
+        if (val > minPush) minPush = val;
+        delay(1);
     }
-    Serial.println();
-    return accumulator/SAMPLE_NUMBER;
 }
 
 void loop(){
@@ -43,18 +40,16 @@ void loop(){
     int val = analogRead(FELT_ANALOG_PIN);
     digitalWrite(FELT_SUPPLY_PIN, LOW);
 
-    // get a value in the inverted range [0; 40] so remap it to [0; 1023]:
-    val = map(val, naturalState,0 , 0,1023);
+    val = map(val, minPush,maxPush , 0,1023);
     val = constrain(val, 0,1023);
 
     Serial.print(val); Serial.print("\t");
-
     for (int i=0; i<val/10; i++) {
         Serial.print("*");
     }
-
     Serial.print("\n");
 
     digitalWrite(13, foo = !foo);
-    delay(10); // miliseconds
+    delay(100); // miliseconds
 }
+
