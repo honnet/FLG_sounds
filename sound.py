@@ -211,20 +211,26 @@ class FeltSensor(object):
         self.pin = pin
         self.value = 0
         self.last_value = 0
-        self.sounds = glob.glob( os.path.join(SOUND_ROOT, 'ddt_stem_sounds/Stem*.wav') )
+        self.sounds = glob.glob( os.path.join(SOUND_ROOT, 'ddt_felt_sounds/Felt*.wav') )
+
+    def scale(self, x , in_min,in_max , out_min,out_max):
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 
     def update(self):
         self.last_value = self.value
         r = readIR(self.pin)
         if r:
-            self.value = {True: 1, False:0}[r >= 0.9]
+            self.value = {True: 1, False:0}[r >= 50]
             #print "Felt %d: %F" % (self.pin, self.value)
-        if self.last_value == 0 and self.value == 1:
-            self.trigger_sound()
+            pitch = self.scale(r , 5,1023 , 2.5,0.6)
+            # sensor range: min => 1023
+            # pitch range:  2.5 => 0.6
+            if self.last_value == 0 and self.value == 1:
+                self.trigger_sound(pitch)
 
-    def trigger_sound(self):
+    def trigger_sound(self, pitch):
         soundfile = random.choice(self.sounds)
-        play_sound(soundfile, vol="5dB" )
+        play_sound(soundfile, speed = pitch, vol="5dB")
 
 
 
