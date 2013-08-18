@@ -2,12 +2,12 @@
 const int FELT_ANALOG_PIN = 5;
 const int FELT_SUPPLY_PIN = 5;
 int minPush = 0;
-int maxPush = 1023;
+int maxPush = 0;
 bool foo = true;
 
 void setup(){
     Serial.begin(115200);
-    Serial.println("Start.");
+    Serial.println("Start, don't touch the mushroom for 5 sec!");
 
     pinMode(FELT_SUPPLY_PIN, OUTPUT);
     calibrate();
@@ -19,19 +19,35 @@ void setup(){
 }
 
 void calibrate(){
-    const int SAMPLE_NUMBER = 1500; // every ms
+    const int SAMPLE_PERIOD = 10;  // ms
+    const int SAMPLE_NUMBER = 500; // 5 seconds
 
-    // measure the maximum and minimum pressures:
+    // measure the average, don't touch for 5 seconds!
+    float accumulator = 0;
+    for (int i=0; i<SAMPLE_NUMBER; i++){
+        digitalWrite(FELT_SUPPLY_PIN, HIGH);
+        int val = analogRead(FELT_ANALOG_PIN);
+        digitalWrite(FELT_SUPPLY_PIN, LOW);
+
+        accumulator += val;
+        delay(SAMPLE_PERIOD);
+    }
+    minPush = 0.85*accumulator/SAMPLE_NUMBER; // 15% security margin
+
+    delay(1000);
+
+    // measure the maximum pressure by hitting the felt:
     for (int i=0; i<SAMPLE_NUMBER; i++){
         digitalWrite(FELT_SUPPLY_PIN, HIGH);
         int val = analogRead(FELT_ANALOG_PIN);
         digitalWrite(FELT_SUPPLY_PIN, LOW);
 
         // Warning: inverted logic on purpose
-        if (val < maxPush) maxPush = val;
-        if (val > minPush) minPush = val;
-        delay(1);
+        if (val < maxPush)
+            maxPush = val;
+        delay(SAMPLE_PERIOD);
     }
+    maxPush *= 1.15; // 15% security margin
 }
 
 void loop(){
@@ -50,6 +66,6 @@ void loop(){
     Serial.print("\n");
 
     digitalWrite(13, foo = !foo);
-    delay(100); // miliseconds
+    delay(20); // miliseconds
 }
 
