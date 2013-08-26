@@ -1,7 +1,7 @@
 // vim:set ft=c: HardwareSerial uart = HardwareSerial();
 HardwareSerial uart = HardwareSerial();
 const int LED_PIN = 11;
-const int NUM_PINS = 6;
+const int NUM_PINS = 4;
 const int NUM_SAMPLES = 8;
 const int FELT_ANALOG_PIN = 5;
 const int FELT_SUPPLY_PIN = 5;
@@ -104,35 +104,36 @@ int median( int n, int arr[] ){
 }
 
 void loop(){
+    // take care of the IR sensors first:
     for (int j=0; j<NUM_SAMPLES; j++) {
-        for (int i=0; i<NUM_PINS; i++) {
-            // one of the sensors need to be supplied when it's measured:
-            if (i == FELT_ANALOG_PIN) digitalWrite(FELT_SUPPLY_PIN, HIGH);
+        for (int i=0; i<NUM_PINS; i++)
             samplebank[i][j] = analogRead(i);
-            if (i == FELT_ANALOG_PIN) digitalWrite(FELT_SUPPLY_PIN, LOW);
-        }
     }
-
-    for (int i=0; i<NUM_PINS; i++) {
+    for (int i=0; i<NUM_PINS; i++)
         medians[i] = median(NUM_PINS, samplebank[i]);
 
-        // get a value in the inverted range [40; 0] so remap it to [0; 1023]:
-        if (i == FELT_ANALOG_PIN) {
-            medians[i] = map(medians[i], minPush,maxPush , 0,1023);
-            medians[i] = constrain(medians[i], 0,1023);
-            Serial.print(medians[i]);
-            Serial.print("\t |");
-            for (int j=0; j<medians[i]/16; j++)
-                Serial.print("*");
-            Serial.print("\n");
-        }
-    }
+    // ...then take care of the felt sensor:
+    digitalWrite(FELT_SUPPLY_PIN, HIGH);        // supply it
+    int felt_sample = analogRead(FELT_ANALOG_PIN);  // get a measure
+    digitalWrite(FELT_SUPPLY_PIN, LOW);         // "power off"
+
+    // get a value in the inverted range [40; 0] so remap it to [0; 1023]:
+    felt_sample = map(felt_sample, minPush,maxPush , 0,1023);
+    felt_sample = constrain(felt_sample, 0,1023);
+
+    // just some useful debug:
+    Serial.print(felt_sample);
+    Serial.print("\t |");
+    for (int j=0; j<felt_sample/16; j++)
+        Serial.print("*");
+    Serial.print("\n");
 
     uart.print("!");
     for (int i=0; i<NUM_PINS; i++) {
         uart.print(medians[i],DEC);
         if ( i < (NUM_PINS-1) ) { uart.print(","); }
     }
+    uart.print(felt_sample, DEC);
     uart.print(".\r\n");
 
     digitalWrite(LED_PIN, led = !led);
