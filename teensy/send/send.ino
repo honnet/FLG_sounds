@@ -1,7 +1,7 @@
 // vim:set ft=c: HardwareSerial uart = HardwareSerial();
 HardwareSerial uart = HardwareSerial();
 const int LED_PIN = 11;
-const int NUM_PINS = 5;
+const int NUM_PINS = 6;
 const int NUM_SAMPLES = 8;
 const int FELT_ANALOG_PIN = 5;
 const int FELT_SUPPLY_PIN = 5;
