@@ -8,8 +8,8 @@ const int FELT_SUPPLY_PIN = 5;
 
 int samplebank[NUM_PINS][NUM_SAMPLES];
 int medians[NUM_PINS];
-int minPush = 0;
-int maxPush = 0;
+int minPush = 90;
+int maxPush = 10;
 bool led = 0;
 
 void setup(){
@@ -35,7 +35,7 @@ void setup(){
         digitalWrite(LED_PIN, led = !led);
         delay(50);
     }
-    calibrate();
+    //calibrate();
 }
 
 void calibrate(){
@@ -117,7 +117,7 @@ void loop(){
     int felt_sample = analogRead(FELT_ANALOG_PIN);  // get a measure
     digitalWrite(FELT_SUPPLY_PIN, LOW);         // "power off"
 
-    // get a value in the inverted range [40; 0] so remap it to [0; 1023]:
+    // get a value in an inverted range so remap it to [0; 1023]:
     felt_sample = map(felt_sample, minPush,maxPush , 0,1023);
     felt_sample = constrain(felt_sample, 0,1023);
 
