@@ -89,7 +89,7 @@ void loop(){
     uart.print("!");
     for (int i=0; i<NUM_PINS; i++) {
         uart.print(medians[i],DEC);
-        if ( i < (NUM_PINS-1) ) { uart.print(","); }
+        uart.print(",");
     }
     uart.print(felt_sample, DEC);
     uart.print(".\r\n");
