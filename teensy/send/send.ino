@@ -5,11 +5,11 @@ const int NUM_PINS = 4;
 const int NUM_SAMPLES = 8;
 const int FELT_ANALOG_PIN = 5;
 const int FELT_SUPPLY_PIN = 5;
+const int MIN_PUSH = 90;
+const int MAX_PUSH = 10;
 
 int samplebank[NUM_PINS][NUM_SAMPLES];
 int medians[NUM_PINS];
-int minPush = 90;
-int maxPush = 10;
 bool led = 0;
 
 void setup(){
@@ -35,48 +35,6 @@ void setup(){
         digitalWrite(LED_PIN, led = !led);
         delay(50);
     }
-    //calibrate();
-}
-
-void calibrate(){
-    digitalWrite(LED_PIN, LOW);
-    const int SAMPLE_PERIOD = 10;  // ms
-    const int SAMPLE_NUMBER = 500; // 5 seconds
-
-    // measure the average, don't touch for 5 seconds!
-    float accumulator = 0;
-    for (int i=0; i<SAMPLE_NUMBER; i++){
-        digitalWrite(FELT_SUPPLY_PIN, HIGH);
-        int val = analogRead(FELT_ANALOG_PIN);
-        digitalWrite(FELT_SUPPLY_PIN, LOW);
-
-        accumulator += val;
-        delay(SAMPLE_PERIOD);
-    }
-    minPush = 0.85*accumulator/SAMPLE_NUMBER; // 15% security margin
-
-    delay(1000);
-    Serial.println("Hit the sensor for 5 sec!");
-    digitalWrite(LED_PIN, HIGH);
-
-    // measure the maximum pressure by hitting the felt:
-    for (int i=0; i<SAMPLE_NUMBER; i++){
-        digitalWrite(FELT_SUPPLY_PIN, HIGH);
-        int val = analogRead(FELT_ANALOG_PIN);
-        digitalWrite(FELT_SUPPLY_PIN, LOW);
-
-        // Warning: inverted logic on purpose
-        if (val < maxPush)
-            maxPush = val;
-        delay(SAMPLE_PERIOD);
-    }
-    maxPush *= 1.15; // 15% security margin
-
-    Serial.print("minPush: ");
-    Serial.println(minPush);
-    Serial.print("maxPush: ");
-    Serial.println(maxPush);
-    delay(1000);
 }
 
 int median( int n, int arr[] ){
@@ -118,7 +76,7 @@ void loop(){
     digitalWrite(FELT_SUPPLY_PIN, LOW);         // "power off"
 
     // get a value in an inverted range so remap it to [0; 1023]:
-    felt_sample = map(felt_sample, minPush,maxPush , 0,1023);
+    felt_sample = map(felt_sample, MIN_PUSH,MAX_PUSH , 0,1023);
     felt_sample = constrain(felt_sample, 0,1023);
 
     // just some useful debug:
