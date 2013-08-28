@@ -19,16 +19,16 @@ MIN_BREATH_SPEED = 0.6
 MAX_BREATH_SPEED = 2.5
 GROWTH_LIMIT=0.0003
 GROWTH_INCREMENT = 5
-DECAY_RATE=1.0
+DECAY_INTERVAL=1 # seconds
 
 SERIAL_PORT_PATTERN = '/dev/ttyAMA*'
 RING_BUFFER_SIZE = 8
 
-IR_PINS = [0]
+IR_PINS = [0,1,2,3]
 #IR_EVENT_THRESHOLD = 0.05
-IR_EVENT_THRESHOLD = 1
+IR_EVENT_THRESHOLD = 20
 
-FELT_PINS = [5]
+FELT_PINS = [4]
 
 
 class SerialReader(threading.Thread):
@@ -152,18 +152,18 @@ class Looper(threading.Thread):
             time.sleep(0.10)
 
 class ActivityCounter(object):
-    def __init__(self, max_value=60, growth_limit=GROWTH_LIMIT, decay_rate=DECAY_RATE):
+    def __init__(self, max_value=60, growth_limit=GROWTH_LIMIT, decay_interval=DECAY_INTERVAL):
         self.value = 0
         self.max_value = max_value
 
-        self.decay_rate = decay_rate # in seconds
+        self.decay_interval = decay_interval # in seconds
         self.growth_limit = growth_limit # in seconds
 
         self.last_decay_time = time.time()
         self.last_grow_time = time.time()
 
     def update(self):
-        if time.time() - self.last_decay_time > self.decay_rate:
+        if time.time() - self.last_decay_time > self.decay_interval:
             if self.value > 0:
                 self.value -= 1
             self.last_decay_time = time.time()
@@ -201,8 +201,8 @@ class IRSensor(object):
         if newvalue:
             self.value = newvalue
         delta = self.value - self.prior_value
-        print "IR %d delta: %d" % (self.pin, self.value - self.prior_value)
         if delta > IR_EVENT_THRESHOLD:
+            print "IR %d delta: %d" % (self.pin, self.value - self.prior_value)
             self.counter += GROWTH_INCREMENT
             print "Counter ++"
 
@@ -222,7 +222,7 @@ class FeltSensor(object):
         if r:
             self.value = {True: 1, False:0}[r >= 50]
             #print "Felt %d: %F" % (self.pin, self.value)
-            pitch = self.scale(r , 5,1023 , 2.5,0.6)
+            pitch = self.scale(r , 50,1023 , 2.5,0.6)
             # sensor range: min => 1023
             # pitch range:  2.5 => 0.6
             if self.last_value == 0 and self.value == 1:
